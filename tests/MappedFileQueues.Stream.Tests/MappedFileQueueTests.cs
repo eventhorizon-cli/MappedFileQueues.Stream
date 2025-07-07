@@ -1,4 +1,4 @@
-﻿using System.Diagnostics;
+using System.Diagnostics;
 using ConsoleApp;
 using MappedFileQueues.Tests;
 
@@ -13,7 +13,8 @@ public class MappedFileQueueTests
 
         var options = new MappedFileQueueOptions
         {
-            StorePath = tempStorePath.Path, SegmentSize = 33
+            StorePath = tempStorePath.Path,
+            SegmentSize = 33
         };
 
         using var queue = MappedFileQueue.Create(options);

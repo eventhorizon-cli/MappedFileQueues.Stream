@@ -25,7 +25,7 @@ internal class MappedFileProducer : IMappedFileProducer, IDisposable
 
         var offsetPath = Path.Combine(offsetDir, Constants.ProducerOffsetFile);
         _offsetFile = new OffsetMappedFile(offsetPath);
-        
+
         _segmentDirectory = Path.Combine(options.StorePath, Constants.CommitLogDirectory);
 
     }
@@ -39,14 +39,14 @@ internal class MappedFileProducer : IMappedFileProducer, IDisposable
         _segment ??= FindOrCreateSegmentByOffset(bytesToWrite);
 
         Span<byte> buffer = stackalloc byte[bytesToWrite];
-        
+
         // Write the message length at the beginning as the header
         BitConverter.TryWriteBytes(buffer, message.Length);
         // Copy the message into the buffer after the header
         message.CopyTo(buffer[Constants.MessageHeaderSize..]);
         // Write the end marker at the end
         buffer[^Constants.EndMarkerSize..].Fill(Constants.EndMarker);
-        
+
         _segment.Write(buffer);
 
         Commit(bytesToWrite);
