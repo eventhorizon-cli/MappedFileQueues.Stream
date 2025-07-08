@@ -16,6 +16,10 @@ internal class Constants
 
     public const byte EndMarkerSize = 1;
 
+    public const byte FileEndMarker = 0xEE;
+
+    public const int MaxMessageBodySize = 0xFFFFFF;
+
     // At least one byte for the message content
-    public const byte MinMessageSize = MessageHeaderSize + EndMarkerSize + 1;
+    public const int MinMessageSize = MessageHeaderSize + EndMarkerSize + 1;
 }

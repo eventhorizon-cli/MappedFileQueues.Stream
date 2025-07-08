@@ -27,16 +27,21 @@ internal class MappedFileProducer : IMappedFileProducer, IDisposable
         _offsetFile = new OffsetMappedFile(offsetPath);
 
         _segmentDirectory = Path.Combine(options.StorePath, Constants.CommitLogDirectory);
-
     }
 
     public void Produce(ReadOnlySpan<byte> message)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
 
-        int bytesToWrite = Constants.MessageHeaderSize + message.Length + Constants.EndMarkerSize;
+        if (message.Length > Constants.MaxMessageBodySize)
+        {
+            throw new ArgumentOutOfRangeException(nameof(message),
+                $"Message size exceeds the maximum allowed size of {Constants.MaxMessageBodySize} bytes.");
+        }
 
-        _segment ??= FindOrCreateSegmentByOffset(bytesToWrite);
+        var bytesToWrite = Constants.MessageHeaderSize + message.Length + Constants.EndMarkerSize;
+
+        EnsureSegmentAvailable(bytesToWrite);
 
         Span<byte> buffer = stackalloc byte[bytesToWrite];
 
@@ -52,11 +57,7 @@ internal class MappedFileProducer : IMappedFileProducer, IDisposable
         Commit(bytesToWrite);
     }
 
-    public void Produce<T>(T message, IMessageSerializer<T> serializer)
-    {
-        var buffer = serializer.Serialize(message);
-        Produce(buffer);
-    }
+    public void Produce<T>(T message, IMessageSerializer<T> serializer) => Produce(serializer.Serialize(message));
 
     public void Dispose()
     {
@@ -90,10 +91,59 @@ internal class MappedFileProducer : IMappedFileProducer, IDisposable
         }
     }
 
-    private MappedFileSegment FindOrCreateSegmentByOffset(int bytesToWrite) =>
-        MappedFileSegment.FindOrCreate(
+    private void EnsureSegmentAvailable(int bytesToWrite)
+    {
+        // If a current segment exists and has enough space, do nothing
+        if (_segment != null && _segment.HasEnoughSpace(bytesToWrite))
+        {
+            return;
+        }
+
+        var previousSegmentExistsButEnded = _segment != null;
+        // Write end marker if there is space, then dispose the old segment
+        if (_segment != null)
+        {
+            if (_segment.HasEnoughSpace(Constants.MinMessageSize))
+            {
+                _segment.Write(Constants.FileEndMarker);
+            }
+
+            _segment.Dispose();
+            _segment = null;
+        }
+
+        if (previousSegmentExistsButEnded)
+        {
+            _segment = MappedFileSegment.Create(
+                _segmentDirectory,
+                _options.SegmentSize,
+                _offsetFile.Offset);
+            return;
+        }
+
+        // Try to find an existing segment or create a new one
+        if (MappedFileSegment.TryFind(_segmentDirectory, _options.SegmentSize, _offsetFile.Offset,
+                out var foundSegment))
+        {
+            if (foundSegment.HasEnoughSpace(bytesToWrite))
+            {
+                _segment = foundSegment;
+                return;
+            }
+
+            if (foundSegment.HasEnoughSpace(Constants.MinMessageSize))
+            {
+                // Write end marker if there is space, then dispose the old segment
+                foundSegment.Write(Constants.FileEndMarker);
+            }
+
+            foundSegment.Dispose();
+        }
+
+        // If the segment was not found or does not have enough space, create a new segment
+        _segment = MappedFileSegment.Create(
             _segmentDirectory,
             _options.SegmentSize,
-            _offsetFile.Offset,
-            bytesToWrite);
+            _offsetFile.Offset);
+    }
 }

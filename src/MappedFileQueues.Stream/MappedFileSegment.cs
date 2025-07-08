@@ -1,8 +1,11 @@
+using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.IO.MemoryMappedFiles;
 
 namespace MappedFileQueues.Stream;
 
+[DebuggerDisplay(
+    "FileName = {FileName}, Capacity = {_viewStream.Capacity}, Position = {_viewStream.Position}, Remaining = {_viewStream.Capacity - _viewStream.Position}")]
 internal class MappedFileSegment : IDisposable
 {
     private readonly FileStream _fileStream;
@@ -12,7 +15,6 @@ internal class MappedFileSegment : IDisposable
     private MappedFileSegment(
         string filePath,
         long fileSize,
-        long fileStartOffset,
         long viewStartOffset,
         bool readOnly)
     {
@@ -20,14 +22,6 @@ internal class MappedFileSegment : IDisposable
         {
             throw new ArgumentOutOfRangeException(nameof(fileSize), "File size must be greater than zero.");
         }
-
-        if (fileStartOffset < 0)
-        {
-            throw new ArgumentOutOfRangeException(nameof(fileStartOffset),
-                "File start offset must be greater than or equal to zero.");
-        }
-
-        StartOffset = fileStartOffset;
 
         _fileStream = new FileStream(
             filePath,
@@ -44,16 +38,36 @@ internal class MappedFileSegment : IDisposable
             true);
 
         _viewStream = _mmf.CreateViewStream(0, fileSize, MemoryMappedFileAccess.ReadWrite);
-        _viewStream.Seek(viewStartOffset, SeekOrigin.Begin);
+        if (viewStartOffset > 0)
+        {
+            _viewStream.Seek(viewStartOffset, SeekOrigin.Begin);
+        }
     }
 
-    public long StartOffset { get; }
+    public string FileName => Path.GetFileName(_fileStream.Name);
 
     public bool HasEnoughSpace(int byteCount) => _viewStream.Position + byteCount <= _viewStream.Capacity;
 
     public void Write(ReadOnlySpan<byte> buffer)
     {
+        if (!HasEnoughSpace(buffer.Length))
+        {
+            throw new InvalidOperationException(
+                $"Not enough space in the mapped file segment {FileName}, required: {buffer.Length}, available: {_viewStream.Capacity - _viewStream.Position}.");
+        }
+
         _viewStream.Write(buffer);
+    }
+
+    public void Write(byte byteValue)
+    {
+        if (!HasEnoughSpace(1))
+        {
+            throw new InvalidOperationException(
+                $"Not enough space in the mapped file segment {FileName}, required: 1, available: {_viewStream.Capacity - _viewStream.Position}.");
+        }
+
+        _viewStream.WriteByte(byteValue);
     }
 
     /// <summary>
@@ -64,10 +78,10 @@ internal class MappedFileSegment : IDisposable
     /// <exception cref="InvalidOperationException">Thrown if there is not enough space in the mapped file segment to read the specified buffer.</exception>
     public void Read(Span<byte> buffer)
     {
-        if (_viewStream.Position + buffer.Length > _viewStream.Capacity)
+        if (!HasEnoughSpace(buffer.Length))
         {
             throw new InvalidOperationException(
-                "Not enough space in the mapped file segment to read the specified buffer.");
+                $"Not enough space in the mapped file segment {FileName}, required: {buffer.Length}, available: {_viewStream.Capacity - _viewStream.Position}.");
         }
 
         _viewStream.ReadExactly(buffer);
@@ -96,29 +110,22 @@ internal class MappedFileSegment : IDisposable
     }
 
     /// <summary>
-    /// Finds or creates a new <see cref="MappedFileSegment"/> instance based on the specified parameters.
+    /// Creates a new <see cref="MappedFileSegment"/> instance based on the specified parameters.
     /// </summary>
     /// <param name="directory">The directory path where the files are stored.</param>
     /// <param name="fileSize">The size of the file, may be adjusted to fit the data type.</param>
-    /// <param name="offset">The offset of the item stored in the file.</param>
-    /// <param name="bytesToWrite">The number of bytes to write to the segment for the next message.</param>
+    /// <param name="fileStartOffset">The offset of the first item stored in the file, which will determine the file name.</param>
     /// <returns>A new instance of <see cref="MappedFileSegment"/>.</returns>
-    public static MappedFileSegment FindOrCreate(
+    /// <exception cref="ArgumentOutOfRangeException">Thrown when the file size is less than or equal to zero.</exception>
+    /// <exception cref="InvalidOperationException">Thrown when the file already exists.</exception>
+    public static MappedFileSegment Create(
         string directory,
         long fileSize,
-        long offset,
-        int bytesToWrite)
+        long fileStartOffset)
     {
-        if (!TryFindFile(directory, fileSize, offset, out var fileStartOffset))
+        if (fileSize <= 0)
         {
-            // If the file does not exist, create a new one
-            fileStartOffset = offset;
-        }
-
-        if (offset + bytesToWrite > fileStartOffset + fileSize)
-        {
-            // If the offset exceeds the current file size, we need to create a new segment
-            fileStartOffset = offset;
+            throw new ArgumentOutOfRangeException(nameof(fileSize), "File size must be greater than zero.");
         }
 
         var fileName = fileStartOffset.ToString("D20");
@@ -130,11 +137,15 @@ internal class MappedFileSegment : IDisposable
             Directory.CreateDirectory(directory);
         }
 
+        if (File.Exists(filePath))
+        {
+            throw new InvalidOperationException($"File '{filePath}' already exists. Cannot create a new segment.");
+        }
+
         return new MappedFileSegment(
             filePath,
             fileSize,
-            fileStartOffset,
-            offset - fileStartOffset,
+            0,
             readOnly: false);
     }
 
@@ -165,7 +176,6 @@ internal class MappedFileSegment : IDisposable
         segment = new MappedFileSegment(
             filePath,
             fileSize,
-            fileStartOffset,
             offset - fileStartOffset,
             readOnly: true);
         return true;

@@ -51,29 +51,13 @@ internal class MappedFileConsumer : IMappedFileConsumer, IDisposable
         var retryIntervalMs = (int)_options.ConsumerRetryInterval.TotalMilliseconds;
         var spinWaitDurationMs = (int)_options.ConsumerSpinWaitDuration.TotalMilliseconds;
 
-        while (_segment == null)
-        {
-            if (!TryFindSegmentByOffset(out _segment))
-            {
-                Thread.Sleep(retryIntervalMs);
-            }
-            else
-            {
-                if (!_segment.HasEnoughSpace(Constants.MinMessageSize))
-                {
-                    // No enough space in the current segment, dispose it and try to find a new one
-                    _segment.Dispose();
-                    _segment = null;
-                    Thread.Sleep(retryIntervalMs);
-                }
-            }
-        }
+        EnsureSegmentAvailable();
 
         var spinWait = new SpinWait();
         var startTicks = DateTime.UtcNow.Ticks;
 
-        ReadOnlySpan<byte> message;
-        while (!TryRead(out message))
+        ReadOnlySpan<byte> messageBody;
+        while (!TryRead(out messageBody))
         {
             // Spin wait until the item is available or timeout
             if ((DateTime.UtcNow.Ticks - startTicks) / TimeSpan.TicksPerMillisecond > spinWaitDurationMs)
@@ -86,7 +70,7 @@ internal class MappedFileConsumer : IMappedFileConsumer, IDisposable
             spinWait.SpinOnce();
         }
 
-        return message;
+        return messageBody;
     }
 
     public T Consume<T>(IMessageDeserializer<T> deserializer) => deserializer.Deserialize(Consume());
@@ -131,6 +115,29 @@ internal class MappedFileConsumer : IMappedFileConsumer, IDisposable
         _segment?.Dispose();
     }
 
+
+    private void EnsureSegmentAvailable()
+    {
+        var retryIntervalMs = (int)_options.ConsumerRetryInterval.TotalMilliseconds;
+        while (_segment == null)
+        {
+            if (!TryFindSegmentByOffset(out _segment))
+            {
+                Thread.Sleep(retryIntervalMs);
+            }
+            else
+            {
+                if (!_segment.HasEnoughSpace(Constants.MinMessageSize))
+                {
+                    // No enough space in the current segment, dispose it and try to find a new one
+                    _segment.Dispose();
+                    _segment = null;
+                    Thread.Sleep(retryIntervalMs);
+                }
+            }
+        }
+    }
+
     private bool TryFindSegmentByOffset([MaybeNullWhen(false)] out MappedFileSegment segment) =>
         MappedFileSegment.TryFind(
             _segmentDirectory,
@@ -140,21 +147,34 @@ internal class MappedFileConsumer : IMappedFileConsumer, IDisposable
 
     private bool TryRead(out ReadOnlySpan<byte> message)
     {
-        if (_offsetToCommit.HasValue)
-        {
-            throw new InvalidOperationException("Cannot read while there is an uncommitted offset.");
-        }
-
-        if (_segment == null)
-        {
-            throw new InvalidOperationException("No segment available to read from.");
-        }
-
         var headerSize = Constants.MessageHeaderSize;
-
         Span<byte> headerBuffer = stackalloc byte[headerSize];
 
-        _segment.Read(headerBuffer);
+        while (true)
+        {
+            if (_offsetToCommit.HasValue)
+            {
+                throw new InvalidOperationException("Cannot read while there is an uncommitted offset.");
+            }
+
+            if (_segment == null)
+            {
+                throw new InvalidOperationException("No segment available to read from.");
+            }
+
+            _segment.Read(headerBuffer);
+
+            var endOfSegment = headerBuffer[0] == Constants.FileEndMarker;
+            if (endOfSegment)
+            {
+                _segment.Dispose();
+                _segment = null;
+                EnsureSegmentAvailable();
+                continue;
+            }
+
+            break;
+        }
 
         var messageLength = BitConverter.ToInt32(headerBuffer);
 
@@ -187,6 +207,7 @@ internal class MappedFileConsumer : IMappedFileConsumer, IDisposable
 
         _offsetToCommit = _offsetFile.Offset + headerSize + messageLength + Constants.EndMarkerSize;
         message = new ReadOnlySpan<byte>(_pooledBuffer, 0, messageLength);
+        _cachedMessageForRetry = new Memory<byte>(_pooledBuffer, 0, messageLength);
 
         return true;
     }

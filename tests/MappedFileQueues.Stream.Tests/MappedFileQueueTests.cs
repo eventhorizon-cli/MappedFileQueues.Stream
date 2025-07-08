@@ -99,7 +99,7 @@ public class MappedFileQueueTests
     {
         using var tempStorePath = TempStorePath.Create();
 
-        var options = new MappedFileQueueOptions { StorePath = tempStorePath.Path, SegmentSize = 32 };
+        var options = new MappedFileQueueOptions { StorePath = tempStorePath.Path, SegmentSize = 55 };
 
         var serializer = new TestMessageSerializer();
         var deserializer = new TestMessageDeserializer();
@@ -153,7 +153,7 @@ public class MappedFileQueueTests
     {
         using var tempStorePath = TempStorePath.Create();
 
-        var options = new MappedFileQueueOptions { StorePath = tempStorePath.Path, SegmentSize = 32 };
+        var options = new MappedFileQueueOptions { StorePath = tempStorePath.Path, SegmentSize = 55 };
 
         var serializer = new TestMessageSerializer();
         var deserializer = new TestMessageDeserializer();
