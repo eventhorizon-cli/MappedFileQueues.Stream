@@ -94,13 +94,6 @@ internal class MappedFileConsumer : IMappedFileConsumer, IDisposable
         _offsetToCommit = null;
         ArrayPool<byte>.Shared.Return(_pooledBuffer!);
         _cachedMessageForRetry = null;
-
-        // Check if the segment is fully consumed
-        if (!_segment.HasEnoughSpace(Constants.MinMessageSize))
-        {
-            _segment.Dispose();
-            _segment = null;
-        }
     }
 
     public void Dispose()
@@ -160,6 +153,15 @@ internal class MappedFileConsumer : IMappedFileConsumer, IDisposable
             if (_segment == null)
             {
                 throw new InvalidOperationException("No segment available to read from.");
+            }
+
+            if (!_segment.HasEnoughSpace(headerSize))
+            {
+                // No enough space in the current segment, dispose it and try to find a new one
+                _segment.Dispose();
+                _segment = null;
+                EnsureSegmentAvailable();
+                continue;
             }
 
             _segment.Read(headerBuffer);

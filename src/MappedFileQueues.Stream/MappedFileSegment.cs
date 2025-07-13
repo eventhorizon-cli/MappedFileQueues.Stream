@@ -200,7 +200,7 @@ internal class MappedFileSegment : IDisposable
 
         var startOffsets = segmentFiles
             .Select(file => long.Parse(Path.GetFileNameWithoutExtension(file)))
-            .OrderByDescending(startOffset => startOffset)
+            .OrderDescending()
             .ToArray();
 
         foreach (var startOffset in startOffsets)

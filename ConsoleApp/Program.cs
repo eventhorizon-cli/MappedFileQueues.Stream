@@ -9,9 +9,20 @@ if (Directory.Exists(testDirectory))
     Directory.Delete(testDirectory, true);
 }
 
-var segmentSize = 2 * 1024;
+var serializer = new TestMessageSerializer();
+var deserializer = new TestMessageDeserializer();
 
-var items = 10;
+var segmentSize = 512 * 1024 * 1024;
+
+var itemSize = serializer.Serialize(new TestClass
+{
+    IntValue = 1,
+    LongValue = 10,
+    DoubleValue = 0.5,
+    StringValue = "TestString"
+}).Length;
+
+var items = segmentSize * 2 / itemSize;
 
 using var mappedFileQueue = MappedFileQueue.Create(new MappedFileQueueOptions
 {
@@ -22,8 +33,6 @@ using var mappedFileQueue = MappedFileQueue.Create(new MappedFileQueueOptions
 var producer = mappedFileQueue.Producer;
 var consumer = mappedFileQueue.Consumer;
 
-var serializer = new TestMessageSerializer();
-var deserializer = new TestMessageDeserializer();
 
 var sw = Stopwatch.StartNew();
 

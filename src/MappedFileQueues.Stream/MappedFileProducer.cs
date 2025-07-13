@@ -81,14 +81,6 @@ internal class MappedFileProducer : IMappedFileProducer, IDisposable
         }
 
         _offsetFile.Advance(bytes);
-
-        // Check if the segment has reached its limit
-        if (!_segment.HasEnoughSpace(Constants.MinMessageSize))
-        {
-            // Dispose the current segment and will create a new one on the next Produce call
-            _segment.Dispose();
-            _segment = null;
-        }
     }
 
     private void EnsureSegmentAvailable(int bytesToWrite)

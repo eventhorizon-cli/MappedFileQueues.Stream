@@ -2,11 +2,11 @@ namespace ConsoleApp;
 
 public class TestClass
 {
-    public int IntValue;
+    public int IntValue { get; set; }
 
-    public long LongValue;
+    public long LongValue { get; set; }
 
-    public double DoubleValue;
+    public double DoubleValue { get; set; }
 
-    public string StringValue;
+    public string StringValue { get; set; }
 }
