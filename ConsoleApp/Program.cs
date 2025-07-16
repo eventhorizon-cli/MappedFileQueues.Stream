@@ -3,31 +3,21 @@ using ConsoleApp;
 using MappedFileQueues.Stream;
 
 // Clean up the test directory
-var testDirectory = "test";
-if (Directory.Exists(testDirectory))
+var storePath = "test";
+if (Directory.Exists(storePath))
 {
-    Directory.Delete(testDirectory, true);
+    Directory.Delete(storePath, true);
 }
+
+var segmentSize = 512 * 1024 * 1024; // 512 MB
+var items = 20_000_000;
 
 var serializer = new TestMessageSerializer();
 var deserializer = new TestMessageDeserializer();
 
-var segmentSize = 512 * 1024 * 1024;
-
-var itemSize = serializer.Serialize(new TestClass
-{
-    IntValue = 1,
-    LongValue = 10,
-    DoubleValue = 0.5,
-    StringValue = "TestString"
-}).Length;
-
-var items = segmentSize * 2 / itemSize;
-
 using var mappedFileQueue = MappedFileQueue.Create(new MappedFileQueueOptions
 {
-    StorePath = "test",
-    SegmentSize = segmentSize
+    StorePath = "test", SegmentSize = segmentSize
 });
 
 var producer = mappedFileQueue.Producer;
@@ -40,10 +30,7 @@ for (var i = 1; i <= items; i++)
 {
     var testItem = new TestClass
     {
-        IntValue = i,
-        LongValue = i * 10,
-        DoubleValue = i / 2.0,
-        StringValue = "TestString" + i
+        IntValue = i, LongValue = i * 10, DoubleValue = i / 2.0, StringValue = "TestString" + i
     };
 
     if (i == 1)
