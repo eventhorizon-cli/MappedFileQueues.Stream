@@ -14,7 +14,8 @@ var deserializer = new TestMessageDeserializer();
 
 var queue = MappedFileQueue.Create(new MappedFileQueueOptions
 {
-    StorePath = storePath, SegmentSize = 512 * 1024 * 1024 // 512 MB
+    StorePath = storePath,
+    SegmentSize = 512 * 1024 * 1024 // 512 MB
 });
 
 var producer = queue.Producer;
@@ -27,7 +28,10 @@ var produceTask = Task.Run(() =>
     {
         var testData = new TestClass
         {
-            IntValue = i, LongValue = i * 10, DoubleValue = i / 2.0, StringValue = "TestString_" + i
+            IntValue = i,
+            LongValue = i * 10,
+            DoubleValue = i / 2.0,
+            StringValue = "TestString_" + i
         };
         producer.Produce(testData, serializer);
     }
@@ -50,4 +54,3 @@ var consumeTask = Task.Run(() =>
 });
 
 await Task.WhenAll(produceTask, consumeTask);
-

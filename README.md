@@ -166,9 +166,6 @@ public class TestMessageDeserializer : IMessageDeserializer<TestClass?>
 Create a MappedFileQueues instance, get the singleton producer and consumer, and produce/consume data:
 
 ```csharp
-using ConsoleApp;
-using MappedFileQueues.Stream;
-
 var storePath = "test";
 
 // If you have run the test before, delete the previous data first
