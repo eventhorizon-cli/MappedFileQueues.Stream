@@ -1,7 +1,3 @@
-Here's the English translation of your README for **MappedFileQueues.Stream**:
-
----
-
 MappedFileQueues
 ================
 
