@@ -3,6 +3,11 @@ namespace MappedFileQueues.Stream;
 public interface IMappedFileConsumer
 {
     /// <summary>
+    /// The next offset to consume from the mapped file queue.
+    /// </summary>
+    public long NextOffset { get; }
+
+    /// <summary>
     /// Consumes a message from the mapped file queue.
     /// </summary>
     /// <remarks>Do not use the returned span after calling Commit.</remarks>
@@ -19,6 +24,7 @@ public interface IMappedFileConsumer
 
     /// <summary>
     /// Commits the offset of the last consumed message.
+    /// <remarks>Please ensure the message has been processed before calling this method.</remarks>
     /// </summary>
     void Commit();
 }

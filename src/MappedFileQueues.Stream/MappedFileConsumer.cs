@@ -36,6 +36,8 @@ internal class MappedFileConsumer : IMappedFileConsumer, IDisposable
         _segmentDirectory = Path.Combine(options.StorePath, Constants.CommitLogDirectory);
     }
 
+    public long NextOffset => _offsetFile.Offset;
+
     public ReadOnlySpan<byte> Consume()
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
@@ -56,8 +58,8 @@ internal class MappedFileConsumer : IMappedFileConsumer, IDisposable
         var spinWait = new SpinWait();
         var startTicks = DateTime.UtcNow.Ticks;
 
-        ReadOnlySpan<byte> messageBody;
-        while (!TryRead(out messageBody))
+        ReadOnlySpan<byte> payloadBuffer;
+        while (!TryRead(out payloadBuffer))
         {
             // Spin wait until the item is available or timeout
             if ((DateTime.UtcNow.Ticks - startTicks) / TimeSpan.TicksPerMillisecond > spinWaitDurationMs)
@@ -70,7 +72,7 @@ internal class MappedFileConsumer : IMappedFileConsumer, IDisposable
             spinWait.SpinOnce();
         }
 
-        return messageBody;
+        return payloadBuffer;
     }
 
     public T Consume<T>(IMessageDeserializer<T> deserializer) => deserializer.Deserialize(Consume());
@@ -138,7 +140,7 @@ internal class MappedFileConsumer : IMappedFileConsumer, IDisposable
             _offsetFile.Offset,
             out segment);
 
-    private bool TryRead(out ReadOnlySpan<byte> message)
+    private bool TryRead(out ReadOnlySpan<byte> payloadBuffer)
     {
         var headerSize = Constants.MessageHeaderSize;
         Span<byte> headerBuffer = stackalloc byte[headerSize];
@@ -166,7 +168,7 @@ internal class MappedFileConsumer : IMappedFileConsumer, IDisposable
 
             _segment.Read(headerBuffer);
 
-            var endOfSegment = headerBuffer[0] == Constants.FileEndMarker;
+            var endOfSegment = headerBuffer[0] == Constants.SegmentEndMarker;
             if (endOfSegment)
             {
                 _segment.Dispose();
@@ -183,32 +185,32 @@ internal class MappedFileConsumer : IMappedFileConsumer, IDisposable
         if (messageLength <= 0)
         {
             // The next message is not available yet
-            message = ReadOnlySpan<byte>.Empty;
+            payloadBuffer = ReadOnlySpan<byte>.Empty;
             _segment.Rewind(headerSize);
 
             return false;
         }
 
-        Span<byte> messageBuffer = stackalloc byte[messageLength + Constants.EndMarkerSize];
+        Span<byte> payloadBufferWithEndMarker = stackalloc byte[messageLength + Constants.EndMarkerSize];
 
-        _segment.Read(messageBuffer);
+        _segment.Read(payloadBufferWithEndMarker);
 
-        var endMarker = messageBuffer[^1];
+        var endMarker = payloadBufferWithEndMarker[^1];
 
         if (endMarker != Constants.EndMarker)
         {
             // The next message is not available yet
-            message = ReadOnlySpan<byte>.Empty;
+            payloadBuffer = ReadOnlySpan<byte>.Empty;
             _segment.Rewind(headerSize + messageLength + Constants.EndMarkerSize);
             return false;
         }
 
         _pooledBuffer = ArrayPool<byte>.Shared.Rent(messageLength);
 
-        messageBuffer[..messageLength].CopyTo(_pooledBuffer);
+        payloadBufferWithEndMarker[..messageLength].CopyTo(_pooledBuffer);
 
         _offsetToCommit = _offsetFile.Offset + headerSize + messageLength + Constants.EndMarkerSize;
-        message = new ReadOnlySpan<byte>(_pooledBuffer, 0, messageLength);
+        payloadBuffer = new ReadOnlySpan<byte>(_pooledBuffer, 0, messageLength);
         _cachedMessageForRetry = new Memory<byte>(_pooledBuffer, 0, messageLength);
 
         return true;

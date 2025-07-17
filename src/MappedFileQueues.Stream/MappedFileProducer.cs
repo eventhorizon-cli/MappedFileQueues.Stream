@@ -29,6 +29,8 @@ internal class MappedFileProducer : IMappedFileProducer, IDisposable
         _segmentDirectory = Path.Combine(options.StorePath, Constants.CommitLogDirectory);
     }
 
+    public long NextOffset => _offsetFile.Offset;
+
     public void Produce(ReadOnlySpan<byte> message)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
@@ -52,7 +54,7 @@ internal class MappedFileProducer : IMappedFileProducer, IDisposable
         // Write the end marker at the end
         buffer[^Constants.EndMarkerSize..].Fill(Constants.EndMarker);
 
-        _segment.Write(buffer);
+        _segment!.Write(buffer);
 
         Commit(bytesToWrite);
     }
@@ -97,7 +99,7 @@ internal class MappedFileProducer : IMappedFileProducer, IDisposable
         {
             if (_segment.HasEnoughSpace(Constants.MinMessageSize))
             {
-                _segment.Write(Constants.FileEndMarker);
+                _segment.Write(Constants.SegmentEndMarker);
             }
 
             _segment.Dispose();
@@ -126,7 +128,7 @@ internal class MappedFileProducer : IMappedFileProducer, IDisposable
             if (foundSegment.HasEnoughSpace(Constants.MinMessageSize))
             {
                 // Write end marker if there is space, then dispose the old segment
-                foundSegment.Write(Constants.FileEndMarker);
+                foundSegment.Write(Constants.SegmentEndMarker);
             }
 
             foundSegment.Dispose();

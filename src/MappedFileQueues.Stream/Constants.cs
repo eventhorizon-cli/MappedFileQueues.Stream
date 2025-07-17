@@ -16,7 +16,7 @@ internal class Constants
 
     public const byte EndMarkerSize = 1;
 
-    public const byte FileEndMarker = 0xEE;
+    public const byte SegmentEndMarker = 0xEE;
 
     public const int MaxMessageBodySize = 0xFFFFFF;
 
