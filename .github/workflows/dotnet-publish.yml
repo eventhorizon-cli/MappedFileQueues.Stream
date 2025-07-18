@@ -1,0 +1,44 @@
+name: Publish NuGet Package
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  dotnet-publish:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v3
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Get version without 'v'
+        id: get_version
+        run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_ENV
+
+      - name: Restore dependencies
+        run: dotnet restore src/MappedFileQueues.Stream
+
+      - name: Build
+        run: dotnet build src/MappedFileQueues.Stream --configuration Release --no-restore
+
+      - name: Pack
+        run: |
+          dotnet pack src/MappedFileQueues.Stream --configuration Release --no-build --output ./output \
+            /p:PackageVersion=${{ env.VERSION }} \
+            /p:PackageId=MappedFileQueues.Stream \
+            /p:Authors="Event Horizon" \
+            /p:RepositoryUrl="https://github.com/eventhorizon-cli/MappedFileQueues.Stream" \
+            /p:RepositoryType=git \
+            /p:PackageLicenseUrl=https://raw.githubusercontent.com/eventhorizon-cli/MappedFileQueues.Stream/main/LICENSE
+
+      - name: Publish to NuGet
+        env:
+          NUGET_API_KEY: ${{ secrets.NUGET_API_KEY }}
+        run: dotnet nuget push ./output/*.nupkg --api-key $NUGET_API_KEY --source https://api.nuget.org/v3/index.json
