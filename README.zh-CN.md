@@ -80,7 +80,7 @@ public interface IMappedFileProducer
     /// <summary>
     /// 下一个消息将被写入的偏移量。
     /// </summary>
-    public long NextOffset { get; }
+    public long Offset { get; }
 
     /// <summary>
     /// 将消息写入到内存映射文件队列。
@@ -104,7 +104,13 @@ public interface IMappedFileConsumer
     /// <summary>
     /// 下一个将被消费的消息的偏移量。
     /// </summary>
-    public long NextOffset { get; }
+    public long Offset { get; }
+
+    /// <summary>
+    /// 调整当前消费者的偏移量。
+    /// </summary>
+    /// <param name="offset">新的偏移量值。</param>
+    public void AdjustOffset(long offset);
 
     /// <summary>
     /// 从内存映射文件队列中消费一条消息。

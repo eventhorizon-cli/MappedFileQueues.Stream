@@ -29,7 +29,7 @@ internal class MappedFileProducer : IMappedFileProducer, IDisposable
         _segmentDirectory = Path.Combine(options.StorePath, Constants.CommitLogDirectory);
     }
 
-    public long NextOffset => _offsetFile.Offset;
+    public long Offset => _offsetFile.Offset;
 
     public void Produce(ReadOnlySpan<byte> message)
     {

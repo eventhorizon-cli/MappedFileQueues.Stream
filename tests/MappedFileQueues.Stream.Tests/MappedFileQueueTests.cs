@@ -11,11 +11,7 @@ public class MappedFileQueueTests
     {
         using var tempStorePath = TempStorePath.Create();
 
-        var options = new MappedFileQueueOptions
-        {
-            StorePath = tempStorePath.Path,
-            SegmentSize = 33
-        };
+        var options = new MappedFileQueueOptions { StorePath = tempStorePath.Path, SegmentSize = 33 };
 
         using var queue = MappedFileQueue.Create(options);
 
@@ -237,6 +233,49 @@ public class MappedFileQueueTests
 
         // Consume again, this time committing the offset
         for (var i = 0; i < 5; i++)
+        {
+            var testItem = consumer.Consume(deserializer);
+            consumer.Commit();
+
+            Assert.NotNull(testItem);
+            Assert.Equal(i, testItem.A);
+            Assert.Equal(i + 1, testItem.B);
+            Assert.Equal(i + 2, testItem.C);
+            Assert.Equal(i + 3, testItem.D);
+        }
+    }
+
+    [Fact]
+    public void Consumer_Offset_Can_Be_Manually_Set()
+    {
+        using var tempStorePath = TempStorePath.Create();
+
+        var options = new MappedFileQueueOptions { StorePath = tempStorePath.Path, SegmentSize = 32 };
+        using var queue = MappedFileQueue.Create(options);
+
+        var producer = queue.Producer;
+        var consumer = queue.Consumer;
+
+        var serializer = new TestMessageSerializer();
+        var deserializer = new TestMessageDeserializer();
+
+        long secondMessageOffset = 0;
+
+        for (var i = 0; i < 5; i++)
+        {
+            if (i == 1)
+            {
+                // Save the offset of the second message
+                secondMessageOffset = producer.Offset;
+            }
+
+            var testItem = new TestClass { A = i, B = i + 1, C = i + 2, D = i + 3 };
+            producer.Produce(testItem, serializer);
+        }
+
+        // Manually set the offset to consume from
+        consumer.AdjustOffset(secondMessageOffset);
+        for (var i = 1; i < 5; i++)
         {
             var testItem = consumer.Consume(deserializer);
             consumer.Commit();

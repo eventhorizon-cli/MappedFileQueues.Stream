@@ -36,7 +36,25 @@ internal class MappedFileConsumer : IMappedFileConsumer, IDisposable
         _segmentDirectory = Path.Combine(options.StorePath, Constants.CommitLogDirectory);
     }
 
-    public long NextOffset => _offsetFile.Offset;
+    public long Offset => _offsetFile.Offset;
+
+    public void AdjustOffset(long offset)
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+
+        if (offset < 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(offset), "Offset must be greater than or equal to zero.");
+        }
+
+        if (_segment != null)
+        {
+            throw new InvalidOperationException(
+                "Cannot adjust offset while there is an active segment. Please adjust the offset before consuming any messages.");
+        }
+
+        _offsetFile.MoveTo(offset);
+    }
 
     public ReadOnlySpan<byte> Consume()
     {
@@ -92,7 +110,7 @@ internal class MappedFileConsumer : IMappedFileConsumer, IDisposable
                 $"No matched segment found. Ensure {nameof(Consume)} is called before {nameof(Commit)}.");
         }
 
-        _offsetFile.AdvanceTo(_offsetToCommit.Value);
+        _offsetFile.MoveTo(_offsetToCommit.Value);
         _offsetToCommit = null;
         ArrayPool<byte>.Shared.Return(_pooledBuffer!);
         _cachedMessageForRetry = null;

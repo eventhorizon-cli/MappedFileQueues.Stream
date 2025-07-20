@@ -81,7 +81,7 @@ public interface IMappedFileProducer
     /// <summary>
     /// The next offset where message will be written in the mapped file queue.
     /// </summary>
-    public long NextOffset { get; }
+    public long Offset { get; }
 
     /// <summary>
     /// Produces a message to the mapped file queue.
@@ -103,7 +103,13 @@ public interface IMappedFileConsumer
     /// <summary>
     /// The next offset to consume from the mapped file queue.
     /// </summary>
-    public long NextOffset { get; }
+    public long Offset { get; }
+
+    /// <summary>
+    /// Adjusts the offset to consume from the mapped file queue.
+    /// </summary>
+    /// <param name="offset">The new offset to set.</param>
+    public void AdjustOffset(long offset);
 
     /// <summary>
     /// Consumes a message from the mapped file queue.
