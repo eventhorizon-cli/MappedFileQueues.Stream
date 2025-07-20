@@ -50,7 +50,6 @@ var consumeTask = Task.Run(() =>
     }
 
     Console.WriteLine("Consumed 100 items.");
-
 });
 
 await Task.WhenAll(produceTask, consumeTask);

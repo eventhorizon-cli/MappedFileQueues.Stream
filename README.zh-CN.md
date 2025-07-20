@@ -164,7 +164,7 @@ public class TestMessageDeserializer : IMessageDeserializer<TestClass?>
 ```csharp
 var storePath = "test";
 
-// If you have run the test before, delete the previous data first
+// 如果之前运行过测试，先删除之前的数据
 if (Directory.Exists(storePath))
 {
     Directory.Delete(storePath, true);
