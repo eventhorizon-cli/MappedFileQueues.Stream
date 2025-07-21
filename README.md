@@ -167,6 +167,8 @@ public class TestMessageDeserializer : IMessageDeserializer<TestClass?>
 
 Create a MappedFileQueues instance, get the singleton producer and consumer, and produce/consume data:
 
+**Note: In actual usage, use a separate thread for LongRunning to consume data in order to avoid occupying thread pool threads.**
+
 ```csharp
 var storePath = "test";
 

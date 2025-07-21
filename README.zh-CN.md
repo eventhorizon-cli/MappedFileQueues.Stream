@@ -167,6 +167,8 @@ public class TestMessageDeserializer : IMessageDeserializer<TestClass?>
 
 创建 MappedFileQueues 实例获取单例的生产者和消费者，并进行数据的生产和消费：
 
+**注意：实际使用时，请使用 LongRunning 的单独线程来消费数据，以避免对线程池线程线程的占用。**
+
 ```csharp
 var storePath = "test";
 
